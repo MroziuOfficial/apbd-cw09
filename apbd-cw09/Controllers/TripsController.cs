@@ -51,4 +51,45 @@ public class TripsController : ControllerBase
 
         return Ok(result);
     }
+    
+    [HttpPost("{idTrip}/clients")]
+    public async Task<IActionResult> AssignClientToTrip(int idTrip, [FromBody] ClientTripRequest request)
+    {
+        if (await _context.Clients.AnyAsync(c => c.Pesel == request.Pesel))
+        {
+            return BadRequest("Client with this PESEL already exists.");
+        }
+
+        var trip = await _context.Trips.FindAsync(idTrip);
+        if (trip == null || trip.DateFrom <= DateTime.Now)
+        {
+            return BadRequest("Trip does not exist or has already started.");
+        }
+
+        if (await _context.ClientTrips.AnyAsync(ct => ct.IdClientNavigation.Pesel == request.Pesel && ct.IdTrip == idTrip))
+        {
+            return BadRequest("Client is already assigned to this trip.");
+        }
+
+        var client = new Client
+        {
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            Email = request.Email,
+            Telephone = request.Telephone,
+            Pesel = request.Pesel,
+        };
+
+        client.ClientTrips.Add(new ClientTrip
+        {
+            IdTrip = idTrip,
+            RegisteredAt = DateTime.Now,
+            PaymentDate = request.PaymentDate
+        });
+
+        _context.Clients.Add(client);
+        await _context.SaveChangesAsync();
+
+        return Ok();
+    }
 }
